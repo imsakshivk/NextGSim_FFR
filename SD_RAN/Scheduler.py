@@ -23,6 +23,7 @@ class RadioResourceSchedulers(object):
         self.user_throughput = np.zeros(self.num_users)
         self.user_PRB_throughput = np.zeros((self.num_users, self.num_PRBs))
         self.user_BS = np.zeros(self.num_users)
+        self.ffr_factor = ffr_factor  # Fractional frequency reuse factor
         if scheduler_type == 'Proportional_Fair':
             self.alpha = 1
             self.beta = 1
@@ -76,7 +77,28 @@ class RadioResourceSchedulers(object):
                     selected_device = np.argmax(score[:, PRB])
                     self.RR_assignment[BS_index, selected_device, PRB] = 1
         return self.RR_assignment, self.user_BS
-
+   
+ def schedule_proportional_fair_ffr(self, history): #PF_FFR algo
+        for BS_index in range(0, self.num_BSs):
+            BS_object = self.sim.gNBs_per_scenario[BS_index]
+            connected_devices = BS_object.connected_devices
+            connected_devices_ID = [device.ID for device in connected_devices]
+            inst_data_rate = np.zeros((self.num_users, self.num_PRBs))
+            score = np.zeros((self.num_users, self.num_PRBs))
+            for user_object in connected_devices:
+                self.user_BS[user_object.ID] = BS_index
+            if len(connected_devices) > 0:
+                for PRB in range(0, self.num_PRBs):
+                    for user in connected_devices_ID:
+                        if PRB < self.num_PRBs * self.ffr_factor:
+                            inst_data_rate[user, PRB] = 180 * np.log2(1 + 10**(self.SINR[BS_index, user, PRB]/10))
+                        else:
+                            inst_data_rate[user, PRB] = 180 * np.log2(1 + 10**(self.SINR[BS_index, user, PRB]/20))
+                        score[user, PRB] = (inst_data_rate[user, PRB])**self.alpha + 0.001 / (history[user] + 0.001)**self.beta
+                    selected_device = np.argmax(score[:, PRB])
+                    self.RR_assignment[BS_index, selected_device, PRB] = 1
+        return self.RR_assignment, self.user_BS
+ 
     def calc_achieved_throughput(self):
         for user in range(0, self.num_users):
             for BS in range(0, self.num_BSs):
