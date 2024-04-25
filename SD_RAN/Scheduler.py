@@ -23,8 +23,7 @@ class RadioResourceSchedulers(object):
         self.user_throughput = np.zeros(self.num_users)
         self.user_PRB_throughput = np.zeros((self.num_users, self.num_PRBs))
         self.user_BS = np.zeros(self.num_users)
-        self.ffr_factor = ffr_factor  # Fractional frequency reuse factor
-        if scheduler_type == 'Proportional_Fair':
+        if scheduler_type == 'Proportional_Fair' or scheduler_type == 'Proportional_Fair_FFR':
             self.alpha = 1
             self.beta = 1
         elif scheduler_type == 'Max_Rate':
@@ -73,12 +72,22 @@ class RadioResourceSchedulers(object):
                 for PRB in range(0, self.num_PRBs):
                     for user in connected_devices_ID:
                         inst_data_rate[user, PRB] = 180 * np.log2(1 + 10**(self.SINR[BS_index, user, PRB]/10))
-                        score[user, PRB] = (inst_data_rate[user, PRB])**self.alpha/(history[user])**self.beta
+                        score[user, PRB] = (inst_data_rate[user, PRB])**self.alpha+0.001/(history[user]+0.001)**self.beta
                     selected_device = np.argmax(score[:, PRB])
                     self.RR_assignment[BS_index, selected_device, PRB] = 1
         return self.RR_assignment, self.user_BS
-   
- def schedule_proportional_fair_ffr(self, history): #PF_FFR algo
+
+    def calc_achieved_throughput(self):
+        for user in range(0, self.num_users):
+            for BS in range(0, self.num_BSs):
+                for PRB in range(0, self.num_PRBs):
+                    ' 180 kHz bandwidth per user'
+                    if self.RR_assignment[BS, user, PRB] == 1:
+                        self.user_PRB_throughput[user, PRB] = 180 * np.log2(1 + 10**(self.SINR[BS, user, PRB]/10))
+                        self.user_throughput[user] += self.user_PRB_throughput [user, PRB]
+        return self.user_PRB_throughput, self.user_throughput
+    
+    def schedule_proportional_fair_ffr(self, history):
         for BS_index in range(0, self.num_BSs):
             BS_object = self.sim.gNBs_per_scenario[BS_index]
             connected_devices = BS_object.connected_devices
@@ -90,21 +99,11 @@ class RadioResourceSchedulers(object):
             if len(connected_devices) > 0:
                 for PRB in range(0, self.num_PRBs):
                     for user in connected_devices_ID:
-                        if PRB < self.num_PRBs * self.ffr_factor:
+                        if PRB < self.num_PRBs * 1:
                             inst_data_rate[user, PRB] = 180 * np.log2(1 + 10**(self.SINR[BS_index, user, PRB]/10))
                         else:
                             inst_data_rate[user, PRB] = 180 * np.log2(1 + 10**(self.SINR[BS_index, user, PRB]/20))
-                        score[user, PRB] = (inst_data_rate[user, PRB])**self.alpha + 0.001 / (history[user] + 0.001)**self.beta
+                        score[user, PRB] = (inst_data_rate[user, PRB])*self.alpha + 0.001 / (history[user] + 0.001)*self.beta
                     selected_device = np.argmax(score[:, PRB])
                     self.RR_assignment[BS_index, selected_device, PRB] = 1
         return self.RR_assignment, self.user_BS
- 
-    def calc_achieved_throughput(self):
-        for user in range(0, self.num_users):
-            for BS in range(0, self.num_BSs):
-                for PRB in range(0, self.num_PRBs):
-                    ' 180 kHz bandwidth per user'
-                    if self.RR_assignment[BS, user, PRB] == 1:
-                        self.user_PRB_throughput[user, PRB] = 180 * np.log2(1 + 10**(self.SINR[BS, user, PRB]/10))
-                        self.user_throughput[user] += self.user_PRB_throughput [user, PRB]
-        return self.user_PRB_throughput, self.user_throughput
