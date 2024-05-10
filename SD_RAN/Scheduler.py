@@ -99,7 +99,7 @@ class RadioResourceSchedulers(object):
             if len(connected_devices) > 0:
                 for PRB in range(0, self.num_PRBs):
                     for user in connected_devices_ID:
-                        if PRB < self.num_PRBs * 1:
+                        if PRB < self.num_PRBs * 1: #1 is the ffr factor
                             inst_data_rate[user, PRB] = 180 * np.log2(1 + 10**(self.SINR[BS_index, user, PRB]/10))
                         else:
                             inst_data_rate[user, PRB] = 180 * np.log2(1 + 10**(self.SINR[BS_index, user, PRB]/20))
